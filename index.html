@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đang chuyển hướng…</title>
+<style>
+  :root{--bg:#fff;--fg:#1a1a1a;--mut:#777}
+  @media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mut:#999}}
+  body{font:16px system-ui,sans-serif;background:var(--bg);color:var(--fg);
+       max-width:420px;margin:20vh auto;padding:0 16px;text-align:center}
+  #msg{color:var(--mut)} a{color:inherit;display:block;margin:8px 0}
+</style>
+</head>
+<body>
+<p id="msg">Đang tìm app khả dụng…</p>
+<div id="links"></div>
+<script src="config.js"></script>
+<script>
+const { urls, mode } = window.CONFIG || { urls: [], mode: 'fastest' };
+const msg = document.getElementById('msg');
+const TOTAL = 90000, EVERY = 3000;   // app free ngủ đông, có thể mất ~60s để dậy
+
+if (!urls.length) { msg.textContent = 'Chưa cấu hình app1, app2, ...'; }
+else run();
+
+function alive(url, ms) {
+  // Chỉ tải được khi app đích trả về ảnh ping.png thật (trang lỗi/suspend của Render là HTML -> thất bại)
+  return new Promise(res => {
+    const img = new Image();
+    const t = setTimeout(() => { img.onload = img.onerror = null; res(false); }, ms);
+    img.onload = () => { clearTimeout(t); res(true); };
+    img.onerror = () => { clearTimeout(t); res(false); };
+    img.src = url + '/ping.png?t=' + Date.now();
+  });
+}
+
+// Thử liên tục đến khi app dậy; reject nếu quá thời gian
+async function untilAlive(url) {
+  const start = Date.now();
+  while (Date.now() - start < TOTAL) {
+    if (await alive(url, 8000)) return url;
+    await new Promise(r => setTimeout(r, EVERY));
+  }
+  throw new Error('timeout');
+}
+
+const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(p => p[1]);
+
+async function pick() {
+  if (mode === 'random') {
+    for (const u of shuffle(urls)) if (await alive(u, 6000)) return u;  // thử nhanh từng link
+  }
+  return Promise.any(urls.map(untilAlive));   // fastest, hoặc fallback khi random không link nào dậy kịp
+}
+
+async function run() {
+  try {
+    const base = await pick();
+    const path = location.pathname === '/' ? '' : location.pathname;
+    msg.textContent = 'Đang chuyển tới ' + new URL(base).host + '…';
+    location.replace(base + path + location.search + location.hash);
+  } catch {
+    msg.textContent = 'Chưa có app nào phản hồi. Thử mở thủ công:';
+    document.getElementById('links').innerHTML =
+      urls.map(u => `<a href="${u}">${u}</a>`).join('');
+  }
+}
+</script>
+</body>
+</html>

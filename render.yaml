@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: redirector
+    runtime: static
+    buildCommand: node build.js
+    staticPublishPath: dist
+    envVars:
+      - key: app1
+        sync: false
+      - key: app2
+        sync: false
+      - key: mode
+        value: fastest
